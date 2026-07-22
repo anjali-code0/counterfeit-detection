@@ -10,7 +10,7 @@ try:
 except ImportError:
     cv2 = None
 
-# 1. Page Configuration (Must be the first Streamlit command)
+# 1. Page Configuration
 st.set_page_config(
     page_title="VigilantEye AI | Currency Verification", 
     page_icon="🛡️",
@@ -66,6 +66,9 @@ ai_model = load_ai_model()
 st.markdown('<h1 class="main-title">🛡️ VigilantEye AI Node</h1>', unsafe_allow_html=True)
 st.markdown('<p class="sub-title">Automated Indian Counterfeit Currency Identification Subsystem</p>', unsafe_allow_html=True)
 
+# Placeholder to place the Ready Banner right under the Header!
+banner_placeholder = st.empty()
+
 # 5. Agent Control Panel
 st.markdown("### **Agent Control Panel**")
 st.write("Configure the AI detection subsystem parameters here.")
@@ -83,11 +86,12 @@ else:
 
 st.divider()
 
+# Logic to handle banner placement above the controls
 if note_type == "Select a note...":
-    st.markdown("""
+    banner_placeholder.markdown("""
         <div class="crypto-card">
             <h4>💡 System Ready for Inspection</h4>
-            <p>Please select a currency denomination above to initialize the automated target scanning sequence.</p>
+            <p>Please select a currency denomination below to initialize the automated target scanning sequence.</p>
         </div>
     """, unsafe_allow_html=True)
 else:
@@ -130,15 +134,12 @@ else:
                 st.error("🚨 Critical Failure: 'currency_classifier.pkl' not found locally.")
             else:
                 with st.spinner("Executing texture analysis and pixel array mapping..."):
-                    # Safe Image Processing (Using PIL + NumPy fallback)
                     img_resized = img.convert('RGB').resize((128, 128))
                     img_array = np.array(img_resized)
                     
                     if cv2 is not None:
-                        # Convert RGB to BGR to match OpenCV training format
                         img_array = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
                     else:
-                        # Fallback channel swap if OpenCV isn't loaded
                         img_array = img_array[:, :, ::-1]
                     
                     feature_vector = img_array.flatten().reshape(1, -1)
