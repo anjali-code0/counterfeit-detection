@@ -134,7 +134,7 @@ else:
                 st.error("🚨 Critical Failure: 'currency_classifier.pkl' not found locally.")
             else:
                 with st.spinner("Executing texture analysis and pixel array mapping..."):
-                    img_resized = img.convert('RGB').resize((128, 128))
+                    img_resized = img.convert('RGB').resize((64, 64))
                     img_array = np.array(img_resized)
                     
                     if cv2 is not None:
