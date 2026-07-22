@@ -1,0 +1,6 @@
+Lib/
+Scripts/
+etc/
+share/
+__pycache__/
+*.pyc
