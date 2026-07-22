@@ -2,8 +2,13 @@ import streamlit as st
 from PIL import Image
 import numpy as np
 import pickle
-import cv2
 import os
+
+# Safe import for cv2 to prevent app crash
+try:
+    import cv2
+except ImportError:
+    cv2 = None
 
 # 1. Page Configuration (Must be the first Streamlit command)
 st.set_page_config(
@@ -13,21 +18,17 @@ st.set_page_config(
 )
 st.set_option("client.toolbarMode", "viewer")
 
-# 2. Custom CSS Frontend Styling (Cybersecurity Theme)
+# 2. Custom CSS Frontend Styling
 st.markdown("""
     <style>
-    /* Hide the entire top header bar completely (including Deploy button) */
     header, [data-testid="stHeader"] {
         display: none !important;
     }
-    
-    /* Main background and font adjustments */
     .main {
         background-color: #0e1117;
         color: #ffffff;
-        padding-top: 2rem; /* Give a tiny bit of space since we hid the header */
+        padding-top: 2rem;
     }
-    /* Main dashboard title styling */
     .main-title {
         font-size: 2.5rem;
         font-weight: 800;
@@ -35,13 +36,11 @@ st.markdown("""
         text-shadow: 0px 0px 10px rgba(0, 255, 204, 0.3);
         margin-bottom: 5px;
     }
-    /* Subtitle styling */
     .sub-title {
         font-size: 1.1rem;
         color: #8a99ad;
         margin-bottom: 30px;
     }
-    /* Custom cards for layout separation */
     .crypto-card {
         background-color: #1f2633;
         color: #ffffff;
@@ -49,7 +48,7 @@ st.markdown("""
         border-radius: 10px;
         border-left: 5px solid #00ffcc;
         margin-bottom: 20px;
-    }  
+    }   
     </style>
 """, unsafe_allow_html=True)
 
@@ -63,45 +62,40 @@ def load_ai_model():
 
 ai_model = load_ai_model()
 
-# 4. Sidebar Control Panel
-with st.sidebar:
-    st.image("https://img.icons8.com/nolan/96/shield.png", width=80)
-    st.markdown("### **Agent Control Panel**")
-    st.write("Configure the AI detection subsystem parameters here.")
-    
-    note_type = st.selectbox(
-        "Target Denomination:",
-        ["Select a note...", "₹10", "₹20", "₹50", "₹100", "₹200", "₹500"]
-    )
-    
-    st.divider()
-    st.markdown("**Model Engine Status:**")
-    if ai_model is not None:
-        st.success("🟢 CORE_AI: ONLINE")
-    else:
-        st.error("🔴 CORE_AI: OFFLINE")
-
-# 5. Main Dashboard Layout
+# 4. Main Dashboard Header
 st.markdown('<h1 class="main-title">🛡️ VigilantEye AI Node</h1>', unsafe_allow_html=True)
 st.markdown('<p class="sub-title">Automated Indian Counterfeit Currency Identification Subsystem</p>', unsafe_allow_html=True)
 
+# 5. Agent Control Panel
+st.markdown("### **Agent Control Panel**")
+st.write("Configure the AI detection subsystem parameters here.")
+
+note_type = st.selectbox(
+    "Target Denomination:",
+    ["Select a note...", "₹10", "₹20", "₹50", "₹100", "₹200", "₹500"]
+)
+
+st.markdown("**Model Engine Status:**")
+if ai_model is not None:
+    st.success("🟢 CORE_AI: ONLINE")
+else:
+    st.error("🔴 CORE_AI: OFFLINE")
+
+st.divider()
+
 if note_type == "Select a note...":
-    # Welcome / Instruction box when no note is chosen
     st.markdown("""
         <div class="crypto-card">
             <h4>💡 System Ready for Inspection</h4>
-            <p>Please select a currency denomination from the left <b>Agent Control Panel</b> sidebar to initialize the automated target scanning sequence.</p>
+            <p>Please select a currency denomination above to initialize the automated target scanning sequence.</p>
         </div>
     """, unsafe_allow_html=True)
-
 else:
-    # Split the screen into 2 clean columns (Left for Upload, Right for Results)
     col1, col2 = st.columns([1, 1], gap="large")
     
     with col1:
         st.markdown(f"### 📂 Target Ingestion (`{note_type}`)")
         
-        # Segmented control for input method choice
         input_method = st.radio(
             "Select Input Source:",
             ["📁 Upload Image File", "📸 Use Device Camera"],
@@ -120,10 +114,9 @@ else:
             if uploaded_file is not None:
                 img = Image.open(uploaded_file)
         
+        run_scan = False
         if img is not None:
             st.image(img, caption=f"Ingested {note_type} Sample", use_container_width=True)
-            
-            # Glowing action button
             run_scan = st.button(f"⚡ Initialize Neural Scan", use_container_width=True)
 
     with col2:
@@ -137,18 +130,20 @@ else:
                 st.error("🚨 Critical Failure: 'currency_classifier.pkl' not found locally.")
             else:
                 with st.spinner("Executing texture analysis and pixel array mapping..."):
-                    # Process image safely using PIL to OpenCV conversion
-                    opencv_img = np.array(img.convert('RGB'))
-                    opencv_img = cv2.cvtColor(opencv_img, cv2.COLOR_RGB2BGR)
+                    # Safe Image Processing (Using PIL + NumPy fallback)
+                    img_resized = img.convert('RGB').resize((128, 128))
+                    img_array = np.array(img_resized)
                     
-                    # AI Resize and Flat-vector preparation
-                    resized_img = cv2.resize(opencv_img, (128, 128))
-                    feature_vector = resized_img.flatten().reshape(1, -1)
+                    if cv2 is not None:
+                        # Convert RGB to BGR to match OpenCV training format
+                        img_array = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
+                    else:
+                        # Fallback channel swap if OpenCV isn't loaded
+                        img_array = img_array[:, :, ::-1]
                     
-                    # Inference step
+                    feature_vector = img_array.flatten().reshape(1, -1)
                     prediction = ai_model.predict(feature_vector)[0]
                 
-                # Logic Processing & UI Feedback Cards
                 clean_denom = note_type.replace("₹", "")
                 expected_target = f"Genuine_{clean_denom}"
                 
@@ -165,12 +160,12 @@ else:
                     """, unsafe_allow_html=True)
                 elif "Genuine" in prediction:
                     st.warning(f"⚠️ **VERDICT: MISMATCHED DENOMINATION SPECIFICATIONS**")
-                    st.info(f"AI System Exception: Detected a genuine note signature, but identified structural properties of a **₹{prediction.split('_')[1]}** variant instead of the expected target ({note_type}).")
+                    st.info(f"AI System Exception: Identified a **₹{prediction.split('_')[1]}** variant instead of target ({note_type}).")
                 else:
                     st.error("🚨 **CRITICAL ALERT: COUNTERFEIT PATTERNS DETECTED**")
                     st.markdown("""
                         <div style="background-color:#4d1414; padding:15px; border-radius:5px; border-left:5px solid #ff3333;">
                             <b>Threat Level: High</b><br>
-                            The target sample matches recorded malicious pixel signatures, altered micro-lettering distributions, and counterfeit feature vectors stored in the baseline model network.
+                            Malicious pixel signatures matched baseline model network.
                         </div>
                     """, unsafe_allow_html=True)
